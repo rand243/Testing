@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Transfer between my accounts</title>
+<style>
+  body{font-family:system-ui,sans-serif;max-width:480px;margin:2rem auto;padding:0 1rem;color:#1c1c1c}
+  h1{font-size:1.3rem} label{display:block;margin:.8rem 0 .2rem;font-weight:600}
+  input,select,button{font-size:1rem;padding:.5rem;width:100%;box-sizing:border-box}
+  button{margin-top:.8rem;cursor:pointer}
+  #message{margin-top:1rem;padding:.6rem;border-radius:6px;background:#eef;min-height:1.2rem}
+  #message.error{background:#fde8e8} #message.ok{background:#e6f6ea}
+  .summary{display:flex;justify-content:space-between;background:#f4f4f4;padding:.6rem;border-radius:6px}
+  [hidden]{display:none!important}
+</style>
+</head>
+<body>
+<h1>Transfers → Between my accounts</h1>
+<div class="summary">
+  <div>Balance: <strong id="balance"></strong> KZT</div>
+  <div>Daily total: <strong id="daily"></strong> KZT</div>
+</div>
+
+<section id="transfer-form">
+  <label for="recipient">Recipient</label>
+  <select id="recipient"><option>Deposit ending 4417</option></select>
+  <label for="amount">Amount, KZT</label>
+  <input id="amount" inputmode="decimal" autocomplete="off">
+  <button id="continue" type="button">Continue</button>
+</section>
+
+<section id="sms" hidden>
+  <p>An SMS code was sent. Enter the 6-digit code (valid for 120 seconds).</p>
+  <label for="code">SMS code</label>
+  <input id="code" inputmode="numeric" autocomplete="off">
+  <button id="confirm" type="button">Confirm</button>
+</section>
+
+<div id="message" role="alert"></div>
+<h2>Statement</h2>
+<ul id="statement"></ul>
+
+<script>
+(function () {
+  var LIMITS = { min: 100, max: 500000, noCode: 100000, daily: 1000000, codeTtlMs: 120000, attempts: 3 };
+  var TEST_CODE = '123456'; // stub: a real system sends this by SMS
+  var q = new URLSearchParams(location.search);
+  var state = {
+    balance: Number(q.get('balance') || 1000000),
+    daily: Number(q.get('daily') || 0),
+    pending: null,   // { amount, attempts, timer }
+    final: null      // 'confirmed' | 'expired' | 'blocked'
+  };
+  var $ = function (id) { return document.getElementById(id); };
+  var fmt = function (n) { return n.toLocaleString('en-US'); };
+
+  function render() { $('balance').textContent = fmt(state.balance); $('daily').textContent = fmt(state.daily); }
+  function say(text, kind) { var m = $('message'); m.textContent = text; m.className = kind || ''; }
+  function execute(amount) {
+    state.balance -= amount; state.daily += amount;
+    var li = document.createElement('li'); li.textContent = 'Transfer ' + fmt(amount) + ' KZT';
+    $('statement').appendChild(li); render();
+  }
+  function closeSms() { $('sms').hidden = true; $('transfer-form').hidden = false; }
+
+  $('continue').addEventListener('click', function () {
+    var raw = $('amount').value.trim();
+    if (raw === '') return say('Amount error: enter an amount', 'error');
+    if (!/^\d+$/.test(raw)) return say('Amount error: whole tenge only', 'error');
+    var n = Number(raw);
+    if (n < LIMITS.min) return say('Amount error: minimum is 100 KZT', 'error');
+    if (n > LIMITS.max) return say('Amount error: maximum is 500,000 KZT', 'error');
+    if (state.daily + n > LIMITS.daily) return say('Daily limit exceeded', 'error');
+    if (n > state.balance) return say('Insufficient balance', 'error');
+    if (n <= LIMITS.noCode) { execute(n); return say('Transfer completed', 'ok'); }
+    state.final = null;
+    state.pending = { amount: n, attempts: 0, timer: null };
+    state.pending.timer = setTimeout(function () {
+      if (state.pending && !state.final) { state.final = 'expired'; say('Code expired, transfer cancelled', 'error'); }
+    }, LIMITS.codeTtlMs);
+    $('transfer-form').hidden = true; $('sms').hidden = false; $('code').value = '';
+    say('SMS code sent');
+  });
+
+  $('confirm').addEventListener('click', function () {
+    var p = state.pending;
+    if (!p) return;
+    if (state.final === 'confirmed') return;                       // second tap: ignored, no second debit
+    if (state.final === 'expired') return say('Code expired, transfer cancelled', 'error');
+    if (state.final === 'blocked') return say('Transfer cancelled: 3 wrong attempts', 'error');
+    if ($('code').value.trim() === TEST_CODE) {
+      state.final = 'confirmed'; clearTimeout(p.timer); execute(p.amount); say('Transfer confirmed', 'ok');
+      return;
+    }
+    p.attempts += 1;
+    if (p.attempts >= LIMITS.attempts) { state.final = 'blocked'; clearTimeout(p.timer); return say('Transfer cancelled: 3 wrong attempts', 'error'); }
+    say('Incorrect code, attempt ' + p.attempts + ' of ' + LIMITS.attempts, 'error');
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
