@@ -30,12 +30,12 @@ The SMS code of the demo app is the fixed stub `123456`. Test customers (balance
 
 ### Runtime
 
-| Configuration | Total run time | Run tests step (slowest shard) | Run |
+| Configuration | Total run time | Run tests step (slowest shard) | Runs |
 | --- | --- | --- | --- |
-| 1 job, no sharding | X min Y s | X min Y s | [run](LINK) |
-| 4 shards + merge | X min Y s | X min Y s | [run](LINK) |
+| 1 job, no sharding (1 test job + merge) | 55 s | 7 s | [1](https://github.com/rand243/Testing/actions/runs/45019235243), [2](https://github.com/rand243/Testing/actions/runs/45019312659), [3](https://github.com/rand243/Testing/actions/runs/45019389836) |
+| 4 shards + merge | 71 s | 6 s | [1](https://github.com/rand243/Testing/actions/runs/45019493545), [2](https://github.com/rand243/Testing/actions/runs/45019610361), [3](https://github.com/rand243/Testing/actions/runs/45019700076) |
 
-Median of 3 runs via `workflow_dispatch`. Conclusion: _(one sentence: with 25 fast tests each shard spends most of its time on setup — checkout, npm ci, browser install — so the total time barely drops or even grows; sharding pays off when the suite itself takes minutes.)_
+Median of 3 runs each, started with `workflow_dispatch` (the 1-job variant runs from the branch `timing/one-shard`, where the matrix is `[1]` / `[1]`; times from the GitHub API: run start to last job end, and the "Run Playwright tests" step of the slowest shard). Conclusion: with only 25 fast tests the test step takes 6–7 s in either case, and every shard spends most of its time on setup (checkout, `npm ci`, browser install), so four shards plus the merge job are not faster (71 s vs 55 s); sharding pays off only when the tests themselves take minutes.
 
 ### Running locally
 
