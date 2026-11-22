@@ -1,0 +1,14 @@
+{
+  "name": "sis2-playwright-ci",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SIS 2: Playwright tests for a money-transfer page with a CI pipeline",
+  "scripts": {
+    "start": "node server.js",
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@types/node": "^22.0.0"
+  }
+}
